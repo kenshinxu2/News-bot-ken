@@ -7,6 +7,7 @@ import re
 import feedparser
 import aiohttp
 from pyrogram import Client, filters, idle
+from pyrogram.enums import ParseMode  # ✅ IMPORTED ENUM
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -117,6 +118,17 @@ def mark_posted(uid: str):
     posted_ids.add(uid)
     _save(POSTED_FILE, posted_ids)
 
+# ✅ NON-BLOCKING RSS FETCHER
+async def async_fetch_feed(url: str):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=15) as r:
+                content = await r.text()
+                return feedparser.parse(content)
+    except Exception as e:
+        log.error(f"Failed to fetch feed {url}: {e}")
+        return None
+
 # ─────────────────────────────────────────────────────────────────
 #  SEND HELPERS
 # ─────────────────────────────────────────────────────────────────
@@ -127,7 +139,7 @@ async def send_with_photo(chat_id: int, photo: str, caption: str, buttons) -> bo
             photo=photo,
             caption=caption,
             reply_markup=buttons,
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED PARSE MODE
         )
         return True
     except Exception as e:
@@ -138,7 +150,7 @@ async def send_with_photo(chat_id: int, photo: str, caption: str, buttons) -> bo
             caption,
             reply_markup=buttons,
             disable_web_page_preview=False,
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED PARSE MODE
         )
         return True
     except Exception as e:
@@ -152,7 +164,7 @@ async def send_text(chat_id: int, text: str, buttons) -> bool:
             text,
             reply_markup=buttons,
             disable_web_page_preview=False,
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED PARSE MODE
         )
         return True
     except Exception as e:
@@ -165,12 +177,12 @@ async def send_text(chat_id: int, text: str, buttons) -> bool:
 HELP_TEXT = (
     "🎌 <b>Kenshin Anime News Bot</b>\n"
     "━━━━━━━━━━━━━━━━━━━━\n\n"
-    "Auto-posts anime news, trailers &amp; announcements every <b>2 minutes</b>!\n\n"
+    "Auto-posts anime news, trailers & announcements every <b>2 minutes</b>!\n\n"
     "<b>📋 Admin Commands:</b>\n\n"
     "🔹 /setchannel <code>@channel</code>\n"
     "    ↳ Set the target Telegram channel\n\n"
     "🔹 /status\n"
-    "    ↳ View bot &amp; scheduler status\n\n"
+    "    ↳ View bot & scheduler status\n\n"
     "🔹 /fetchnow\n"
     "    ↳ Force fetch all sources right now\n\n"
     "🔹 /clearposted\n"
@@ -193,7 +205,7 @@ HELP_TEXT = (
 # ─────────────────────────────────────────────────────────────────
 @bot.on_message(filters.command(["start", "help"]))
 async def cmd_start(_, m: Message):
-    await m.reply_text(HELP_TEXT, parse_mode="html")
+    await m.reply_text(HELP_TEXT, parse_mode=ParseMode.HTML) # ✅ FIXED
 
 
 @bot.on_message(filters.command("setchannel") & filters.user(ADMIN_IDS))
@@ -203,7 +215,7 @@ async def cmd_set_channel(_, m: Message):
         return await m.reply_text(
             "❌ <b>Usage:</b> <code>/setchannel @channelname</code>\n"
             "<i>Example: /setchannel @kenshin_anime</i>",
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED
         )
     try:
         chat = await bot.get_chat(m.command[1])
@@ -215,11 +227,11 @@ async def cmd_set_channel(_, m: Message):
             f"🆔 <b>ID:</b> <code>{chat.id}</code>\n\n"
             f"⏰ <i>News will auto-post every 2 minutes.</i>\n"
             f"💡 <i>Use /fetchnow to post immediately.</i>",
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED
         )
         log.info(f"Channel set → {chat.title} ({chat.id})")
     except Exception as e:
-        await m.reply_text(f"❌ <b>Error:</b> <code>{e}</code>", parse_mode="html")
+        await m.reply_text(f"❌ <b>Error:</b> <code>{e}</code>", parse_mode=ParseMode.HTML)
 
 
 @bot.on_message(filters.command("status") & filters.user(ADMIN_IDS))
@@ -248,7 +260,7 @@ async def cmd_status(_, m: Message):
         f"  • YouTube × 5 channels\n"
         f"  • AniList Announcements\n"
         f"━━━━━━━━━━━━━━━━━━━━",
-        parse_mode="html",
+        parse_mode=ParseMode.HTML, # ✅ FIXED
     )
 
 
@@ -257,9 +269,9 @@ async def cmd_fetch_now(_, m: Message):
     if not target_channel:
         return await m.reply_text(
             "❌ <b>No channel set!</b>\n<i>Use /setchannel @channel first.</i>",
-            parse_mode="html",
+            parse_mode=ParseMode.HTML, # ✅ FIXED
         )
-    msg = await m.reply_text("⏳ <b>Fetching from all sources…</b>", parse_mode="html")
+    msg = await m.reply_text("⏳ <b>Fetching from all sources…</b>", parse_mode=ParseMode.HTML)
     r = await fetch_rss_news()
     j = await fetch_jikan_news()
     y = await fetch_yt_trailers()
@@ -271,7 +283,7 @@ async def cmd_fetch_now(_, m: Message):
         f"🎬 YT Trailers:    <code>{y}</code>\n"
         f"📢 Announcements:  <code>{a}</code>\n\n"
         f"<i>Duplicates are skipped automatically.</i>",
-        parse_mode="html",
+        parse_mode=ParseMode.HTML, # ✅ FIXED
     )
 
 
@@ -285,7 +297,7 @@ async def cmd_clear(_, m: Message):
         f"🗑 <b>Cleared!</b>\n\n"
         f"Removed <code>{old}</code> tracked post IDs.\n"
         f"<i>Next fetch will re-post everything fresh.</i>",
-        parse_mode="html",
+        parse_mode=ParseMode.HTML, # ✅ FIXED
     )
 
 # ─────────────────────────────────────────────────────────────────
@@ -298,7 +310,10 @@ async def fetch_rss_news() -> int:
     total = 0
     for src in RSS_SOURCES:
         try:
-            feed    = feedparser.parse(src["url"])
+            feed = await async_fetch_feed(src["url"]) # ✅ FIX: NON-BLOCKING FETCH
+            if not feed:
+                continue
+            
             entries = list(reversed(feed.entries[:10]))
             for entry in entries:
                 uid = entry.get("id") or entry.get("link", "")
@@ -313,7 +328,7 @@ async def fetch_rss_news() -> int:
 
                 img_url = None
                 for attr in ("media_thumbnail", "media_content"):
-                    val = getattr(entry, attr, None)
+                    val = entry.get(attr, None)
                     if val and isinstance(val, list):
                         img_url = val[0].get("url")
                         break
@@ -417,10 +432,13 @@ async def fetch_yt_trailers() -> int:
     total = 0
     for ch in YOUTUBE_CHANNELS:
         try:
-            feed    = feedparser.parse(yt_feed_url(ch["id"]))
+            feed = await async_fetch_feed(yt_feed_url(ch["id"])) # ✅ FIX: NON-BLOCKING FETCH
+            if not feed:
+                continue
+            
             entries = list(reversed(feed.entries[:8]))
             for entry in entries:
-                vid_id = getattr(entry, "yt_videoid", None) or extract_video_id(
+                vid_id = entry.get("yt_videoid", None) or extract_video_id(
                     entry.get("link", "")
                 )
                 if not vid_id:
